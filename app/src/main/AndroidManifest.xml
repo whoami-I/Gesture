@@ -17,6 +17,11 @@
             </intent-filter>
         </activity>
         <activity android:name=".simplegesture.MainActivity" />
+        <activity android:name=".gesture.MainActivity" />
+        <activity android:name=".fling.MainActivity" />
+        <activity android:name=".scroller.MainActivity" />
+        <activity android:name=".fling.animation_version.MainActivity" />
+        <activity android:name=".fling.scroller_version.MainActivity" />
     </application>
 
 </manifest>

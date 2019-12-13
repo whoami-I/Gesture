@@ -49,6 +49,7 @@ public class MainActivity extends BaseActivity {
         img.setOnTouchListener(new View.OnTouchListener() {
             Point origFirstPoint = new Point();
             Point oriSecondPoint = new Point();
+
             @Override
             public boolean onTouch(View v, MotionEvent event) {
                 //以index为0和1的手指进行缩放
@@ -99,8 +100,8 @@ public class MainActivity extends BaseActivity {
         img.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                Log.d(TAG, ""+img.getDrawable().getIntrinsicWidth()+";"+img.getDrawable().getIntrinsicHeight());
-                Log.d(TAG, ""+img.getWidth()+";"+img.getHeight());
+                Log.d(TAG, "" + img.getDrawable().getIntrinsicWidth() + ";" + img.getDrawable().getIntrinsicHeight());
+                Log.d(TAG, "" + img.getWidth() + ";" + img.getHeight());
 
 //                img.setScaleType(ImageView.ScaleType.MATRIX);
 //
@@ -129,7 +130,7 @@ public class MainActivity extends BaseActivity {
 
     }
 
-    private void restoreCenter(){
+    private void restoreCenter() {
         Matrix m = img.getImageMatrix();
         RectF rectF = new RectF(0, 0, img.getDrawable().getIntrinsicWidth(), img.getDrawable().getIntrinsicHeight());
         m.mapRect(rectF);
@@ -147,7 +148,8 @@ public class MainActivity extends BaseActivity {
     }
 
     int getDistance(int x1, int y1, int x2, int y2) {
-        return (int) Math.sqrt((x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2));
+        //return (int) Math.sqrt((x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2));
+        return (int) Math.hypot(x1 - x2, y1 - y2);
     }
 
 
