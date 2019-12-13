@@ -41,6 +41,6 @@ public class MLinearLayout extends LinearLayout {
 
     public void startScrollerFling(int velocityY) {
         mScroller.fling(getLeft(), getScrollY(), 0, -velocityY, 0, 0, 0, 120000+getScrollY());
-        invalidate();
+        //invalidate();
     }
 }

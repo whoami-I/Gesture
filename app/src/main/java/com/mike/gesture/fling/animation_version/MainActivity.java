@@ -126,6 +126,9 @@ public class MainActivity extends BaseActivity {
     ValueAnimator flingValueAnimator;
     double mLast = 0;
 
+    /**
+     * 初始化滑动相关的参数
+     */
     private void init() {
         ppi = getResources().getDisplayMetrics().density * 160.0f;
         mPhysicalCoeff = SensorManager.GRAVITY_EARTH // g (m/s^2)
@@ -172,7 +175,7 @@ public class MainActivity extends BaseActivity {
             public void onAnimationUpdate(ValueAnimator animation) {
                 int currTime = (int) animation.getAnimatedValue();
                 //float p = interpolator.getInterpolation((currTime / mFlingDuration));
-                int dis = getCurrDistance( currTime);
+                int dis = getCurrDistance(currTime);
                 ll.scrollBy(0, (int) -(dis - mLast));
                 Log.d("TAG", "dis:" + (dis));
                 //记录本次动画期间上一次总的滑动距离
@@ -182,6 +185,11 @@ public class MainActivity extends BaseActivity {
     }
 
 
+    /**
+     * 开始fling
+     * @param velocityX
+     * @param velocityY
+     */
     private void fling(float velocityX, final float velocityY) {
         if (flingValueAnimator.isRunning()) {
             flingValueAnimator.cancel();
@@ -218,16 +226,31 @@ public class MainActivity extends BaseActivity {
     }
 
 
+    /**
+     * 根据初始速度获取滑动的时间
+     * @param velocity
+     * @return
+     */
     private int getSplineFlingDuration(int velocity) {
         final double l = getSplineDeceleration(velocity);
         final double decelMinusOne = DECELERATION_RATE - 1.0;
         return (int) (1000.0 * Math.exp(l / decelMinusOne));
     }
 
+    /**
+     * 根据速度获取类似于物理世界的加速度
+     * @param velocity
+     * @return
+     */
     private double getSplineDeceleration(int velocity) {
         return Math.log(INFLEXION * Math.abs(velocity) / (mFlingFriction * mPhysicalCoeff));
     }
 
+    /**
+     * 根据初始速度获取最终的滑动距离
+     * @param velocity
+     * @return
+     */
     private double getSplineFlingDistance(int velocity) {
         final double l = getSplineDeceleration(velocity);
         final double decelMinusOne = DECELERATION_RATE - 1.0;
