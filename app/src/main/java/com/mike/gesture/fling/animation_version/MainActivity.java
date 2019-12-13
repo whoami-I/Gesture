@@ -66,6 +66,14 @@ public class MainActivity extends BaseActivity {
                 return true;
             }
 
+            @Override
+            public boolean onDown(MotionEvent e) {
+                //如果在fling，那么当手指在屏幕上，那么停止fling
+                if (flingValueAnimator.isRunning()) {
+                    flingValueAnimator.cancel();
+                }
+                return super.onDown(e);
+            }
 
             public boolean onFling(MotionEvent e1, MotionEvent e2, float velocityX,
                                    float velocityY) {
@@ -103,11 +111,17 @@ public class MainActivity extends BaseActivity {
             * 39.37f // inch/meter
             * ppi
             * 0.84f; // look and feel tuning
+    private static final int NB_SAMPLES = 100;
+    private static final float[] SPLINE_POSITION = new float[NB_SAMPLES + 1];
+    private static final float[] SPLINE_TIME = new float[NB_SAMPLES + 1];
+    private static final float START_TENSION = 0.5f;
+    private static final float END_TENSION = 1.0f;
+    private static final float P1 = START_TENSION * INFLEXION;
+    private static final float P2 = 1.0f - END_TENSION * (1.0f - INFLEXION);
 
-    /* 动画 */
-    TimeInterpolator interpolator = new ViscousFluidInterpolator();
+
     float mVelocityY;
-    double mFlingDistance;
+    int mFlingDistance;
     int mFlingDuration;
     ValueAnimator flingValueAnimator;
     double mLast = 0;
@@ -118,17 +132,49 @@ public class MainActivity extends BaseActivity {
                 * 39.37f // inch/meter
                 * ppi
                 * 0.84f;
+
+        float x_min = 0.0f;
+        float y_min = 0.0f;
+        for (int i = 0; i < NB_SAMPLES; i++) {
+            final float alpha = (float) i / NB_SAMPLES;
+
+            float x_max = 1.0f;
+            float x, tx, coef;
+            while (true) {
+                x = x_min + (x_max - x_min) / 2.0f;
+                coef = 3.0f * x * (1.0f - x);
+                tx = coef * ((1.0f - x) * P1 + x * P2) + x * x * x;
+                if (Math.abs(tx - alpha) < 1E-5) break;
+                if (tx > alpha) x_max = x;
+                else x_min = x;
+            }
+            SPLINE_POSITION[i] = coef * ((1.0f - x) * START_TENSION + x) + x * x * x;
+
+            float y_max = 1.0f;
+            float y, dy;
+            while (true) {
+                y = y_min + (y_max - y_min) / 2.0f;
+                coef = 3.0f * y * (1.0f - y);
+                dy = coef * ((1.0f - y) * START_TENSION + y) + y * y * y;
+                if (Math.abs(dy - alpha) < 1E-5) break;
+                if (dy > alpha) y_max = y;
+                else y_min = y;
+            }
+            SPLINE_TIME[i] = coef * ((1.0f - y) * P1 + y * P2) + y * y * y;
+        }
+        SPLINE_POSITION[NB_SAMPLES] = SPLINE_TIME[NB_SAMPLES] = 1.0f;
+
         flingValueAnimator = new ValueAnimator();
         flingValueAnimator.setInterpolator(new LinearInterpolator());
         flingValueAnimator.removeAllUpdateListeners();
         flingValueAnimator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
             @Override
             public void onAnimationUpdate(ValueAnimator animation) {
-                float currTime = (float) animation.getAnimatedValue();
-                float p = interpolator.getInterpolation((currTime / mFlingDuration));
-                double dis = p * mFlingDistance;
+                int currTime = (int) animation.getAnimatedValue();
+                //float p = interpolator.getInterpolation((currTime / mFlingDuration));
+                int dis = getCurrDistance( currTime);
                 ll.scrollBy(0, (int) -(dis - mLast));
-                Log.d("TAG", "dis:" + (dis - mLast));
+                Log.d("TAG", "dis:" + (dis));
                 //记录本次动画期间上一次总的滑动距离
                 mLast = dis;
             }
@@ -137,10 +183,6 @@ public class MainActivity extends BaseActivity {
 
 
     private void fling(float velocityX, final float velocityY) {
-
-        //        Log.d("TAG","getSplineFlingDistance:"+flingDistance);
-//        Log.d("TAG","setDuration:"+duration);
-
         if (flingValueAnimator.isRunning()) {
             flingValueAnimator.cancel();
         }
@@ -148,11 +190,31 @@ public class MainActivity extends BaseActivity {
         mVelocityY = velocityY;
         final int duration = getSplineFlingDuration((int) velocityY);
         final double flingDistance = getSplineFlingDistance((int) velocityY);
-        flingValueAnimator.setFloatValues(0, duration);
+        flingValueAnimator.setIntValues(0, duration);
         flingValueAnimator.setDuration(duration);
-        mFlingDistance = flingDistance;
+        mFlingDistance = (int) flingDistance;
         mFlingDuration = duration;
         flingValueAnimator.start();
+
+        Log.d("TAG","getSplineFlingDistance:"+flingDistance);
+        Log.d("TAG","setDuration:"+duration);
+    }
+
+    private int getCurrDistance(int currentTime){
+        final float t = (float) currentTime / mFlingDuration;
+        final int index = (int) (NB_SAMPLES * t);
+        float distanceCoef = 1.f;
+        float velocityCoef = 0.f;
+        if (index < NB_SAMPLES) {
+            final float t_inf = (float) index / NB_SAMPLES;
+            final float t_sup = (float) (index + 1) / NB_SAMPLES;
+            final float d_inf = SPLINE_POSITION[index];
+            final float d_sup = SPLINE_POSITION[index + 1];
+            velocityCoef = (d_sup - d_inf) / (t_sup - t_inf);
+            distanceCoef = d_inf + (t - t_inf) * velocityCoef;
+        }
+
+        return (int) (distanceCoef * mFlingDistance);
     }
 
 

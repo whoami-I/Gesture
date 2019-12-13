@@ -58,20 +58,15 @@ public class MainActivity extends BaseActivity {
                         ll.scrollBy(0, (int) distanceY);
                     }
                 }
-                if(valueAnimator.isRunning()){
-                    valueAnimator.cancel();
-                }
-
                 return true;
             }
 
 
             public boolean onFling(MotionEvent e1, MotionEvent e2, float velocityX,
                                    float velocityY) {
-                Log.d("HAHA", "velocityX -> " + velocityX + "; velocityY" + velocityY);
-                Log.d("HAHA", "getHeight -> " + ll.getHeight());
+//                Log.d("HAHA", "velocityX -> " + velocityX + "; velocityY" + velocityY);
+//                Log.d("HAHA", "getHeight -> " + ll.getHeight());
 
-                //fling(velocityX, velocityY);
                 ll.startScrollerFling((int) velocityY);
                 return true;
             }
@@ -90,82 +85,8 @@ public class MainActivity extends BaseActivity {
                 return true;
             }
         });
-        init();
     }
 
-    private void init() {
-        ppi = getResources().getDisplayMetrics().density * 160.0f;
-        mPhysicalCoeff = SensorManager.GRAVITY_EARTH // g (m/s^2)
-                * 39.37f // inch/meter
-                * ppi
-                * 0.84f;
-        valueAnimator = new ValueAnimator();
-        valueAnimator.setInterpolator(new LinearInterpolator());
-    }
-
-    TimeInterpolator interpolator = new ViscousFluidInterpolator();
-
-    float mVelocityY;
-    ValueAnimator valueAnimator;
-
-    private void fling(float velocityX, final float velocityY) {
-
-        if (valueAnimator.isRunning()) {
-            valueAnimator.cancel();
-        }
-
-        mVelocityY = velocityY;
-        final int duration = getSplineFlingDuration((int) velocityY);
-        final double flingDistance = getSplineFlingDistance((int) velocityY);
-        //Log.d("TAG","");
-        Log.d("TAG","getSplineFlingDistance:"+flingDistance);
-        Log.d("TAG","setDuration:"+duration);
-        valueAnimator.setFloatValues(0, duration);
-        valueAnimator.setDuration(duration);
-        valueAnimator.removeAllUpdateListeners();
-        valueAnimator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
-            int mLast = 0;
-            @Override
-            public void onAnimationUpdate(ValueAnimator animation) {
-
-                float currTime = (float) animation.getAnimatedValue();
-                float p = interpolator.getInterpolation((float) (currTime / duration));
-                int dis = (int) (p*flingDistance);
-                ll.scrollBy(0, (int) -(dis-mLast));
-                mLast = dis;
-                Log.d("TAG","dis:"+dis);
-            }
-
-        });
-
-        valueAnimator.start();
-    }
-    private static float DECELERATION_RATE = (float) (Math.log(0.78) / Math.log(0.9));
-    private static final float INFLEXION = 0.35f;
-    private float mFlingFriction = ViewConfiguration.getScrollFriction();
-    float ppi;
-    private float mPhysicalCoeff = SensorManager.GRAVITY_EARTH // g (m/s^2)
-                    * 39.37f // inch/meter
-                    * ppi
-                    * 0.84f; // look and feel tuning
-    private int getSplineFlingDuration(int velocity) {
-        final double l = getSplineDeceleration(velocity);
-        final double decelMinusOne = DECELERATION_RATE - 1.0;
-        return (int) (1000.0 * Math.exp(l / decelMinusOne));
-    }
-    private double getSplineDeceleration(int velocity) {
-        return Math.log(INFLEXION * Math.abs(velocity) / (mFlingFriction * mPhysicalCoeff));
-    }
-
-    private double getSplineFlingDistance(int velocity) {
-        final double l = getSplineDeceleration(velocity);
-        final double decelMinusOne = DECELERATION_RATE - 1.0;
-        return mFlingFriction * mPhysicalCoeff * Math.exp(DECELERATION_RATE / decelMinusOne * l)* Math.signum(velocity);
-    }
-    @Override
-    public void onWindowFocusChanged(boolean hasFocus) {
-        super.onWindowFocusChanged(hasFocus);
-    }
 
     boolean arriveTop() {
         int scrollY = ll.getScrollY();
