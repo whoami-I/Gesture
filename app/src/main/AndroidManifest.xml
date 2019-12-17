@@ -22,6 +22,7 @@
         <activity android:name=".scroller.MainActivity" />
         <activity android:name=".fling.animation_version.MainActivity" />
         <activity android:name=".fling.scroller_version.MainActivity" />
+        <activity android:name=".zoomimageview.MainActivity" />
     </application>
 
 </manifest>

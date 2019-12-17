@@ -41,13 +41,11 @@ public class MainActivity extends BaseActivity {
     private void initDataList() {
         mDataList.add(new ItemDataBean("SimpleGesture",
                 com.mike.gesture.simplegesture.MainActivity.class, ColorGenerator.getInstance().getColor()));
-        mDataList.add(new ItemDataBean("Gesture",
-                com.mike.gesture.gesture.MainActivity.class, ColorGenerator.getInstance().getColor()));
         mDataList.add(new ItemDataBean("Fling动画版",
                 com.mike.gesture.fling.animation_version.MainActivity.class, ColorGenerator.getInstance().getColor()));
         mDataList.add(new ItemDataBean("Fling scroller版",
                 com.mike.gesture.fling.scroller_version.MainActivity.class, ColorGenerator.getInstance().getColor()));
+        mDataList.add(new ItemDataBean("ZoomImageView",
+                com.mike.gesture.zoomimageview.MainActivity.class, ColorGenerator.getInstance().getColor()));
     }
-
-
 }
