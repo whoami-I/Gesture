@@ -1,6 +1,9 @@
 package com.mike.gesture.zoomimageview;
 
 
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
+import android.animation.ValueAnimator;
 import android.content.Context;
 import android.graphics.Matrix;
 import android.graphics.RectF;
@@ -9,6 +12,8 @@ import android.util.Log;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
+import android.view.animation.ScaleAnimation;
+import android.view.animation.TranslateAnimation;
 import android.widget.ImageView;
 import android.widget.OverScroller;
 
@@ -29,7 +34,14 @@ public class ZoomImageView extends AppCompatImageView {
     private static final int MODE_RESTORE = 2;
     private static final int MODE_SCALE = 3;
     private static final int MODE_IDLE = 4;
+    private static final int MODE_TAP = 5;
     private int mState = MODE_UNINIT;
+
+    private static final int SHORT_MODE = 30;
+    private static final int LONG_MODE = 31;
+
+    private int DEFAULT_SCALE_TIME = 150;
+    private ScaleAnimator mScaleAnimator;
 
     private Matrix mMatrix;
 
@@ -43,6 +55,9 @@ public class ZoomImageView extends AppCompatImageView {
     // to help fling
     private OverScroller mScroller;
 
+    // for aniamtion
+
+
     public ZoomImageView(Context context) {
         this(context, null);
     }
@@ -55,6 +70,7 @@ public class ZoomImageView extends AppCompatImageView {
         super(context, attrs, defStyleAttr);
         init();
     }
+
     /* to store the value of last scroller value */
     int[] xyLast = new int[2];
 
@@ -77,6 +93,8 @@ public class ZoomImageView extends AppCompatImageView {
 
     private GestureDetector.OnGestureListener mGestureListener = new GestureDetector.SimpleOnGestureListener() {
 
+        boolean mShortMode = false;
+
         @Override
         public boolean onDown(MotionEvent e) {
             /* end the fling */
@@ -84,10 +102,26 @@ public class ZoomImageView extends AppCompatImageView {
             return true;
         }
 
+        @Override
+        public boolean onDoubleTap(MotionEvent e) {
+            Log.d(TAG,"onDoubleTap");
+            if (mShortMode) {
+                fill(SHORT_MODE);
+            } else {
+                fill(LONG_MODE);
+            }
+            mShortMode = !mShortMode;
+            return true;
+        }
+
         /* finger move right velocityX > 0, move down velocityY > 0*/
         @Override
         public boolean onFling(MotionEvent e1, MotionEvent e2, float velocityX, float velocityY) {
             Log.d(TAG, "velocityX -->" + velocityX + "; velocityY -->" + velocityY);
+            if (mState != MODE_SCROLL) {
+                //如果现在的状态不是scroll，那么就不fling
+                return true;
+            }
             xyLast[0] = 0;
             xyLast[1] = 0;
             /* calculate the parameters of fling operation*/
@@ -208,6 +242,32 @@ public class ZoomImageView extends AppCompatImageView {
         mState = state;
     }
 
+    private void fill(int mode) {
+        if (mScaleAnimator.isRunning()) {
+            mScaleAnimator.cancel();
+        }
+        Matrix matrix = new Matrix();
+        matrix.set(getImageMatrix());
+        mRectF.set(0, 0, getDrawable().getIntrinsicWidth(), getDrawable().getIntrinsicHeight());
+        getImageMatrix().mapRect(mRectF);
+        float widthRatio = getWidth() / mRectF.width();
+        float heightRatio = getHeight() / mRectF.height();
+        float ratio = 0.0f;
+        float dx = (getWidth() / 2 - (mRectF.right + mRectF.left) / 2);
+        float dy = (int) (getHeight() / 2 - (mRectF.bottom + mRectF.top) / 2);
+        if (mode == SHORT_MODE) {
+            ratio = (widthRatio > heightRatio) ? heightRatio : widthRatio;
+        } else if (mode == LONG_MODE) {
+            ratio = (widthRatio < heightRatio) ? heightRatio : widthRatio;
+        } else {
+            throw new RuntimeException("mode must be one of SHORT_MODE or LONG_MODE");
+        }
+        matrix.postTranslate(dx, dy);
+        matrix.postScale(ratio, ratio, getWidth() / 2, getHeight() / 2);
+        mScaleAnimator.set(getImageMatrix(), matrix);
+        mScaleAnimator.start();
+    }
+
 
     public float getCurrentScale(Matrix matrix) {
         float[] values = new float[9];
@@ -245,6 +305,7 @@ public class ZoomImageView extends AppCompatImageView {
         mScaleGestureDetector = new ScaleGestureDetector(getContext(), mScaleGestureListener);
         mMatrix = new Matrix();
         mScroller = new OverScroller(getContext());
+        mScaleAnimator = new ScaleAnimator();
     }
 
     @Override
@@ -254,13 +315,14 @@ public class ZoomImageView extends AppCompatImageView {
         //mScaleGestureDetector.onTouchEvent(event);
 
         int action = event.getActionMasked();
-        int x = (int) event.getX();
-        int y = (int) event.getY();
         switch (action) {
             case MotionEvent.ACTION_DOWN:
                 setScaleType(ImageView.ScaleType.MATRIX);
                 mPrevDistance = 0;
                 changeState(MODE_SCROLL);
+//                if (mScaleAnimator.isRunning()) {
+//                    mScaleAnimator.cancel();
+//                }
                 break;
             case MotionEvent.ACTION_POINTER_DOWN:
                 break;
@@ -285,17 +347,89 @@ public class ZoomImageView extends AppCompatImageView {
                     mPrevDistance = currDistance;
                 }
                 break;
+            case MotionEvent.ACTION_POINTER_UP:
+                mPrevDistance = 0;
+                break;
             case MotionEvent.ACTION_CANCEL:
             case MotionEvent.ACTION_UP:
+                // after finger up, set mPrevDistance to 0
                 mPrevDistance = 0;
-                //restoreCenter();
+                //当手指抬起时，需要确定现在的状态：FLING or SCALE
+                if (mState == MODE_SCALE) {
+                    afterScale();
+                }
                 break;
             default:
                 break;
         }
-
-
         return true;
+    }
+
+    /**
+     * scale之后，drawable可能会小于Imagview或者是偏移了一部分，这时就要将重新设置imagview的状态
+     * 1 如果drawable两条边都小于imageview，则按照宽边原则，将drawable放大到imagview大小
+     * 2 如果drawable有一边小于imagview，那么就要使得drawable这一条边居中
+     * 3
+     */
+    private void afterScale() {
+        if (mScaleAnimator.isRunning()) {
+            mScaleAnimator.cancel();
+        }
+
+        Matrix matrix = new Matrix();
+        matrix.set(getImageMatrix());
+        mRectF.set(0, 0, getDrawable().getIntrinsicWidth(), getDrawable().getIntrinsicHeight());
+        getImageMatrix().mapRect(mRectF);
+        Log.d("HJKL", "width->" + getWidth() + "    height->" + getHeight());
+        Log.d("HJKL", "left->" + mRectF.left + "    top->" + mRectF.top + "    right" + mRectF.right + "    bottom" + mRectF.bottom);
+        if (mRectF.width() < getWidth() && mRectF.height() < getHeight()) {
+            // 需要放大并且将drawable中心移到imageview中心
+            //1 移到中心
+            float postX = getWidth() / 2 - (mRectF.right + mRectF.left) / 2;
+            float postY = getHeight() / 2 - (mRectF.bottom + mRectF.top) / 2;
+            matrix.postTranslate(postX, postY);
+            //2 放大相应的倍数
+            float widthRatio = getWidth() / mRectF.width();
+            float heightRatio = getHeight() / mRectF.height();
+            //选取更小的放大倍数
+            float ratio = (widthRatio > heightRatio) ? heightRatio : widthRatio;
+            matrix.postScale(ratio, ratio, getWidth() / 2, getHeight() / 2);
+            mScaleAnimator.set(getImageMatrix(), matrix);
+            mScaleAnimator.start();
+        } else {
+
+            //剩下的情况都是移动即可
+            float dx = 0;
+            float dy = 0;
+            if (mRectF.width() > getWidth()) {
+                //此时，drawable比Imagiew宽，但是drawable的边在ImageView里面，则需要移动
+                if (mRectF.right < getWidth()) {
+                    dx = getWidth() - mRectF.right;
+                }
+                if (mRectF.left > 0) {
+                    dx = -mRectF.left;
+                }
+                //如果此时还有drawable高度比Imagiew高度小的话，那么竖直居中
+                if (mRectF.height() <= getHeight()) {
+                    dy = (getHeight() - mRectF.bottom - mRectF.top) / 2;
+                }
+            }
+            if (mRectF.height() > getHeight()) {
+                if (mRectF.top > 0) {
+                    dy = -mRectF.top;
+                }
+                if (mRectF.bottom < getHeight()) {
+                    dy = getHeight() - mRectF.bottom;
+                }
+                //如果此时还有drawable高度比Imagiew宽度小的话，那么水平居中
+                if (mRectF.width() <= getWidth()) {
+                    dy = (getWidth() - mRectF.left - mRectF.right) / 2;
+                }
+            }
+            matrix.postTranslate(dx, dy);
+            mScaleAnimator.set(getImageMatrix(), matrix);
+            mScaleAnimator.start();
+        }
     }
 
     private int getDistance(int x1, int y1, int x2, int y2) {
@@ -306,5 +440,58 @@ public class ZoomImageView extends AppCompatImageView {
         mMatrix.set(getImageMatrix());
         mMatrix.postTranslate(x, y);
         setImageMatrix(mMatrix);
+    }
+
+
+    private class ScaleAnimator extends ValueAnimator implements ValueAnimator.AnimatorUpdateListener {
+        float[] result = new float[9];
+        float[] start = new float[9];
+        float[] end = new float[9];
+
+        public ScaleAnimator() {
+            initOthers();
+        }
+
+        public ScaleAnimator(Matrix startMatrix, Matrix endMatrix) {
+            super();
+            startMatrix.getValues(start);
+            endMatrix.getValues(end);
+            initOthers();
+        }
+
+        void initOthers() {
+            addUpdateListener(this);
+            addListener(new AnimatorListenerAdapter() {
+                @Override
+                public void onAnimationEnd(Animator animation) {
+                    super.onAnimationEnd(animation);
+                    getImageMatrix().setValues(end);
+                    Log.d(TAG, "onAnimationEnd");
+                    invalidate();
+                }
+
+                @Override
+                public void onAnimationStart(Animator animation) {
+                    super.onAnimationStart(animation);
+                }
+            });
+            setDuration(DEFAULT_SCALE_TIME);
+            setFloatValues(0, 1);
+        }
+
+        public void set(Matrix startMatrix, Matrix endMatrix) {
+            startMatrix.getValues(start);
+            endMatrix.getValues(end);
+        }
+
+        @Override
+        public void onAnimationUpdate(ValueAnimator animation) {
+            float fraction = animation.getAnimatedFraction();
+            for (int i = 0; i < 9; i++) {
+                result[i] = start[i] + fraction * (end[i] - start[i]);
+            }
+            getImageMatrix().setValues(result);
+            invalidate();
+        }
     }
 }
