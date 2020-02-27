@@ -401,6 +401,8 @@ public class ZoomImageView extends AppCompatImageView {
             //剩下的情况都是移动即可
             float dx = 0;
             float dy = 0;
+            /* 条件1和2不可能同时满足两个，只会有一个成立 */
+            //条件1
             if (mRectF.width() > getWidth()) {
                 //此时，drawable比Imagiew宽，但是drawable的边在ImageView里面，则需要移动
                 if (mRectF.right < getWidth()) {
@@ -414,6 +416,7 @@ public class ZoomImageView extends AppCompatImageView {
                     dy = (getHeight() - mRectF.bottom - mRectF.top) / 2;
                 }
             }
+            //条件2
             if (mRectF.height() > getHeight()) {
                 if (mRectF.top > 0) {
                     dy = -mRectF.top;
@@ -423,7 +426,7 @@ public class ZoomImageView extends AppCompatImageView {
                 }
                 //如果此时还有drawable高度比Imagiew宽度小的话，那么水平居中
                 if (mRectF.width() <= getWidth()) {
-                    dy = (getWidth() - mRectF.left - mRectF.right) / 2;
+                    dx = (getWidth() - mRectF.left - mRectF.right) / 2;
                 }
             }
             matrix.postTranslate(dx, dy);
